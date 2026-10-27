@@ -24,7 +24,7 @@ class Item {
         url = j['url'];
   final String id, exam, subject, unit, kind, method, check, updated, version, url;
   bool get isAi => method.contains('AI');
-  bool get needsCheck => check != '確認済み';
+  bool get needsCheck => isAi && check != '委員確認済み';
 }
 
 class Exam {
@@ -52,8 +52,9 @@ class Data {
   }
 }
 
+// 教材は相対パス（materials/…）で持っているので、ページのURLを基準に開く
 Future<void> open(String url) =>
-    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    launchUrl(Uri.base.resolve(url), mode: LaunchMode.externalApplication);
 
 class PortalApp extends StatelessWidget {
   const PortalApp({super.key});
