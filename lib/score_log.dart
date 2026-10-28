@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'hyakumon_parse.dart';
+import 'ranking.dart';
 
 const _storeKey = 'hyakumon_log_v1';
 
@@ -302,6 +303,8 @@ class _ScoreLogState extends State<ScoreLog> {
       const SizedBox(height: 8),
       const Text('※ブラウザの履歴やサイトのデータを消すと、記録も消えます。機種変更の前には「書き出す」で控えをとってください。',
           style: TextStyle(fontSize: 12)),
+      const SizedBox(height: 24),
+      RankingSection(scores: list),
     ]);
   }
 }

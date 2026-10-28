@@ -1,0 +1,103 @@
+rules_version = '2';
+
+// 百問繚乱ランキング（匿名の分布）のセキュリティルール
+//
+// ・読み書きできるのは、学校のGoogleアカウント（SCHOOL_DOMAIN）でログインした人だけ
+// ・1人が出せるのは、1つの試験・科目につき1件だけ（自分の「区間」だけを保存。点数そのものは保存しない）
+// ・自分の記録は自分しか読めない。ほかの人が読めるのは、区間ごとの人数（hist）だけ
+// ・hist は参加者が20人以上になるまで、誰も読めない
+// ・hist の人数は、自分の記録の追加・変更・削除と一緒に、正しく1ずつしか動かせない
+//
+// データの形
+//   entries/{key}/users/{uid} : { b: 0〜20 }          … その人の区間（5%ごと。20は100%）
+//   hist/{key}                : { total: n, b00: n, …, b20: n }
+//   key の例：2026_前期期末_現代の国語
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ▼学校のGoogleアカウントのドメイン。設定するまでは、誰も読み書きできない
+    function schoolDomain() { return 'SCHOOL_DOMAIN'; }
+
+    function isMember() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower().matches('.*@' + schoolDomain().replace('.', '\\.'));
+    }
+
+    function bk(b) { return 'b' + (b < 10 ? '0' : '') + string(b); }
+    function validBin(b) { return b is int && b >= 0 && b <= 20; }
+    function cnt(d, f) { return d.get(f, 0); }
+
+    function entryPath(key, uid) {
+      return /databases/$(database)/documents/entries/$(key)/users/$(uid);
+    }
+    function histPath(key) {
+      return /databases/$(database)/documents/hist/$(key);
+    }
+
+    match /entries/{key}/users/{uid} {
+      allow get: if isMember() && request.auth.uid == uid;
+      allow list: if false;
+
+      // 新しく参加：hist の total と自分の区間が 1 ずつ増える
+      allow create: if isMember() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['b'])
+        && validBin(request.resource.data.b)
+        && histChanged(key, null, request.resource.data.b);
+
+      // 区間の変更：前の区間が 1 減り、新しい区間が 1 増える
+      allow update: if isMember() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['b'])
+        && validBin(request.resource.data.b)
+        && request.resource.data.b != resource.data.b
+        && histChanged(key, resource.data.b, request.resource.data.b);
+
+      // 参加の取り消し：total と自分の区間が 1 ずつ減る
+      allow delete: if isMember() && request.auth.uid == uid
+        && histChanged(key, resource.data.b, null);
+    }
+
+    // before / after は区間（null は「なし」）。同じ書き込みの中の hist の変化が合っているか確かめる
+    function histChanged(key, before, after) {
+      let h0 = exists(histPath(key)) ? get(histPath(key)).data : {};
+      let h1 = getAfter(histPath(key)).data;
+      let dTotal = (after == null ? 0 : 1) - (before == null ? 0 : 1);
+      return existsAfter(histPath(key))
+        && cnt(h1, 'total') == cnt(h0, 'total') + dTotal
+        && (after == null || cnt(h1, bk(after)) == cnt(h0, bk(after)) + 1)
+        && (before == null || cnt(h1, bk(before)) == cnt(h0, bk(before)) - 1);
+    }
+
+    match /hist/{key} {
+      allow get: if isMember() && resource.data.total >= 20;
+      allow list: if false;
+
+      // hist は、自分の記録と同じ書き込みの中でしか変えられない（中身の正しさは entries 側で確かめる）
+      allow create, update: if isMember()
+        && request.resource.data.keys().hasOnly(['total', 'b00', 'b01', 'b02', 'b03', 'b04', 'b05',
+             'b06', 'b07', 'b08', 'b09', 'b10', 'b11', 'b12', 'b13', 'b14', 'b15', 'b16', 'b17',
+             'b18', 'b19', 'b20'])
+        && onlyOwnEntryChanged(key);
+      allow delete: if false;
+    }
+
+    // hist の変化が、ちょうど自分1人分（total が ±1 か 0、区間の増減が自分の記録と一致）であること
+    function onlyOwnEntryChanged(key) {
+      let e0 = exists(entryPath(key, request.auth.uid));
+      let e1 = existsAfter(entryPath(key, request.auth.uid));
+      let before = e0 ? get(entryPath(key, request.auth.uid)).data.b : null;
+      let after = e1 ? getAfter(entryPath(key, request.auth.uid)).data.b : null;
+      let h0 = resource == null ? {} : resource.data;
+      let h1 = request.resource.data;
+      let changed = h1.diff(h0).affectedKeys();
+      let allowed = ['total'].concat(after == null ? [] : [bk(after)]).concat(before == null ? [] : [bk(before)]);
+      return (before != null || after != null) && before != after
+        && changed.hasOnly(allowed)
+        && cnt(h1, 'total') >= 0
+        && (after == null || cnt(h1, bk(after)) == cnt(h0, bk(after)) + 1)
+        && (before == null || cnt(h1, bk(before)) == cnt(h0, bk(before)) - 1)
+        && cnt(h1, 'total') == cnt(h0, 'total') + (after == null ? 0 : 1) - (before == null ? 0 : 1);
+    }
+  }
+}

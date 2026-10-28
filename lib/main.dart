@@ -1,16 +1,27 @@
 import 'dart:convert';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'firebase_config.dart';
 import 'score_log.dart';
 
 const hyakumonUrl =
     'https://shonan544-kanagawapref.s.simple-edu.co.jp/#/student/exam_list';
 const repoUrl = 'https://github.com/Seg1GPT0Jpn/ShonanHighSchoool-104';
 
-void main() => runApp(const PortalApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // ランキングの設定があるときだけ Firebase につなぐ。失敗しても、ほかの機能はそのまま使える
+  if (rankingConfigured) {
+    try {
+      await Firebase.initializeApp(options: firebaseWebOptions);
+    } catch (_) {}
+  }
+  runApp(const PortalApp());
+}
 
 class Item {
   Item(Map<String, dynamic> j)
