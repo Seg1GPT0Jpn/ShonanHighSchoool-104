@@ -492,5 +492,83 @@
   "updated": "2026-10-27",
   "version": "v1",
   "url": "materials/2026-1F-INFO-EXP-01.pdf"
+ },
+ {
+  "id": "2026-1F-GENKO-PAST-01",
+  "year": "2026",
+  "exam": "前期期末",
+  "subject": "現代の国語",
+  "unit": "全範囲",
+  "kind": "過去問",
+  "method": "スキャン原本",
+  "check": "未確認",
+  "updated": "2026-10-28",
+  "version": "v2",
+  "url": "materials/2026-1F-GENKO-PAST-01.pdf"
+ },
+ {
+  "id": "2026-1F-GENKO-EXP-01",
+  "year": "2026",
+  "exam": "前期期末",
+  "subject": "現代の国語",
+  "unit": "全範囲",
+  "kind": "解答解説・復習",
+  "method": "AI生成",
+  "check": "要確認あり",
+  "updated": "2026-10-28",
+  "version": "v1",
+  "url": "materials/2026-1F-GENKO-EXP-01.pdf"
+ },
+ {
+  "id": "2026-1F-GENBUN-PAST-01",
+  "year": "2026",
+  "exam": "前期期末",
+  "subject": "言語文化",
+  "unit": "全範囲",
+  "kind": "過去問",
+  "method": "スキャン原本",
+  "check": "未確認",
+  "updated": "2026-10-28",
+  "version": "v2",
+  "url": "materials/2026-1F-GENBUN-PAST-01.pdf"
+ },
+ {
+  "id": "2026-1F-GENBUN-EXP-01",
+  "year": "2026",
+  "exam": "前期期末",
+  "subject": "言語文化",
+  "unit": "全範囲",
+  "kind": "解答解説・復習",
+  "method": "AI生成",
+  "check": "要確認あり",
+  "updated": "2026-10-28",
+  "version": "v1",
+  "url": "materials/2026-1F-GENBUN-EXP-01.pdf"
+ },
+ {
+  "id": "2026-1F-GEO-PAST-01",
+  "year": "2026",
+  "exam": "前期期末",
+  "subject": "地理総合",
+  "unit": "全範囲",
+  "kind": "過去問",
+  "method": "スキャン原本",
+  "check": "未確認",
+  "updated": "2026-10-28",
+  "version": "v2",
+  "url": "materials/2026-1F-GEO-PAST-01.pdf"
+ },
+ {
+  "id": "2026-1F-GEO-EXP-01",
+  "year": "2026",
+  "exam": "前期期末",
+  "subject": "地理総合",
+  "unit": "全範囲",
+  "kind": "解答解説・復習",
+  "method": "AI生成",
+  "check": "要確認あり",
+  "updated": "2026-10-28",
+  "version": "v1",
+  "url": "materials/2026-1F-GEO-EXP-01.pdf"
  }
 ]
