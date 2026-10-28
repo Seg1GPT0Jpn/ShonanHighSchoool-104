@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'hyakumon_parse.dart';
+
 const _storeKey = 'hyakumon_log_v1';
 
 class Score {
@@ -17,6 +19,7 @@ class Score {
     required this.title,
     required this.score,
     required this.max,
+    this.avg,
   });
 
   factory Score.fromJson(Map<String, dynamic> j) => Score(
@@ -26,6 +29,7 @@ class Score {
         title: (j['title'] ?? '') as String,
         score: (j['score'] as num).toDouble(),
         max: (j['max'] as num).toDouble(),
+        avg: (j['avg'] as num?)?.toDouble(),
       );
 
   final String id;
@@ -34,6 +38,8 @@ class Score {
   final String title;
   final double score;
   final double max;
+  // 百問繚乱に出る全体平均（取り込んだときだけ入る）
+  final double? avg;
 
   double get rate => max > 0 ? score / max : 0;
 
@@ -44,6 +50,7 @@ class Score {
         'title': title,
         'score': score,
         'max': max,
+        if (avg != null) 'avg': avg,
       };
 }
 
@@ -77,8 +84,10 @@ class ScoreStore {
 }
 
 class ScoreLog extends StatefulWidget {
-  const ScoreLog({super.key, required this.subjects});
+  const ScoreLog({super.key, required this.subjects, this.examDates = const {}});
   final List<String> subjects;
+  // 「前期期末試験|現代の国語」→ 実施日。取り込んだ結果の日付に使う
+  final Map<String, DateTime> examDates;
 
   @override
   State<ScoreLog> createState() => _ScoreLogState();
@@ -130,6 +139,64 @@ class _ScoreLogState extends State<ScoreLog> {
       ),
     );
     if (ok == true) await _commit([for (final x in list) if (x.id != s.id) x]);
+  }
+
+  Future<void> _paste() async {
+    final ctl = TextEditingController();
+    final text = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('百問繚乱から取り込む'),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('1. 百問繚乱で、結果の一覧か「成績を見る」の画面を開く\n'
+                '2. 画面の文字を全部選んでコピーする（パソコンは Ctrl+A → Ctrl+C）\n'
+                '3. 下に貼り付けて「読み取る」を押す', style: TextStyle(fontSize: 13)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: ctl,
+              maxLines: 8,
+              decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'ここに貼り付け'),
+            ),
+            const SizedBox(height: 6),
+            const Text('貼り付けた文字は点数を探すのに使うだけで、保存も送信もしません。', style: TextStyle(fontSize: 12)),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('やめる')),
+          FilledButton(onPressed: () => Navigator.pop(c, ctl.text), child: const Text('読み取る')),
+        ],
+      ),
+    );
+    if (text == null || text.trim().isEmpty || !mounted) return;
+    final found = parseHyakumon(text);
+    if (found.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('点数が見つかりませんでした。「42／100点」のような表示がある画面をコピーしてください。')));
+      return;
+    }
+    var n = 0;
+    final cands = [
+      for (final p in found)
+        Score(
+          id: '${DateTime.now().microsecondsSinceEpoch}${n++}',
+          date: widget.examDates['${p.exam}|${p.subject}'] ?? DateTime.now(),
+          subject: p.subject,
+          title: p.exam,
+          score: p.score,
+          max: p.max,
+          avg: p.avg,
+        )
+    ];
+    final picked = await showDialog<List<Score>>(
+      context: context,
+      builder: (_) => _ImportDialog(candidates: cands, existing: list, subjects: widget.subjects),
+    );
+    if (picked == null || picked.isEmpty) return;
+    await _commit([...list, ...picked]);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${picked.length}件を記録しました。')));
+    }
   }
 
   Future<void> _export() async {
@@ -194,7 +261,11 @@ class _ScoreLogState extends State<ScoreLog> {
       const Text('百問繚乱で出た点数を自分で入力します。記録はこの端末の中だけに保存され、ほかの人には見えません。',
           style: TextStyle(fontSize: 13)),
       const SizedBox(height: 8),
-      FilledButton.tonalIcon(onPressed: _edit, icon: const Icon(Icons.add), label: const Text('結果を記録する')),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        FilledButton.icon(
+            onPressed: _paste, icon: const Icon(Icons.content_paste), label: const Text('百問繚乱から取り込む')),
+        FilledButton.tonalIcon(onPressed: _edit, icon: const Icon(Icons.add), label: const Text('手で記録する')),
+      ]),
       const SizedBox(height: 12),
       if (list.isEmpty)
         const Card(
@@ -218,7 +289,7 @@ class _ScoreLogState extends State<ScoreLog> {
               ListTile(
                 dense: true,
                 title: Text('${s.subject}${s.title.isEmpty ? '' : '　${s.title}'}'),
-                subtitle: Text(ymd(s.date)),
+                subtitle: Text([ymd(s.date), if (s.avg != null) '全体平均 ${num0(s.avg!)}'].join('　')),
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                   Text('${num0(s.score)} / ${num0(s.max)}', style: t.titleSmall),
                   IconButton(tooltip: '消す', icon: const Icon(Icons.delete_outline, size: 20), onPressed: () => _delete(s)),
@@ -351,6 +422,7 @@ class _ScoreDialogState extends State<_ScoreDialog> {
           title: title.text.trim(),
           score: s,
           max: m,
+          avg: widget.initial?.avg,
         ));
   }
 
@@ -413,6 +485,87 @@ class _ScoreDialogState extends State<_ScoreDialog> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('やめる')),
         FilledButton(onPressed: _ok, child: const Text('保存')),
+      ],
+    );
+  }
+}
+
+/// 取り込む前の確認。同じ記録がすでにあるもの・科目が分からないものは、最初はチェックを外しておく。
+class _ImportDialog extends StatefulWidget {
+  const _ImportDialog({required this.candidates, required this.existing, required this.subjects});
+  final List<Score> candidates;
+  final List<Score> existing;
+  final List<String> subjects;
+
+  @override
+  State<_ImportDialog> createState() => _ImportDialogState();
+}
+
+class _ImportDialogState extends State<_ImportDialog> {
+  late final rows = [...widget.candidates];
+  late final checked = [for (final c in rows) _ok(c) && !_dup(c)];
+
+  bool _ok(Score c) => widget.subjects.contains(c.subject);
+  bool _dup(Score c) => widget.existing
+      .any((e) => e.subject == c.subject && e.title == c.title && e.score == c.score && e.max == c.max);
+
+  Future<void> _fix(int i) async {
+    final r = await showDialog<Score>(
+      context: context,
+      builder: (_) => _ScoreDialog(subjects: widget.subjects, initial: rows[i]),
+    );
+    if (r != null) {
+      setState(() {
+        rows[i] = r;
+        checked[i] = _ok(r);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).colorScheme;
+    final n = checked.where((x) => x).length;
+    return AlertDialog(
+      title: Text('${rows.length}件見つかりました'),
+      content: SizedBox(
+        width: 420,
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          const Text('読み取りに間違いがないか確かめてください。行を押すと直せます。', style: TextStyle(fontSize: 13)),
+          const SizedBox(height: 4),
+          Flexible(
+            child: ListView(shrinkWrap: true, children: [
+              for (var i = 0; i < rows.length; i++)
+                CheckboxListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: checked[i],
+                  onChanged: _ok(rows[i]) ? (v) => setState(() => checked[i] = v!) : null,
+                  title: Text('${rows[i].subject.isEmpty ? '（科目不明）' : rows[i].subject}　'
+                      '${num0(rows[i].score)} / ${num0(rows[i].max)}'),
+                  subtitle: Text(
+                    [
+                      if (rows[i].title.isNotEmpty) rows[i].title,
+                      ymd(rows[i].date),
+                      if (rows[i].avg != null) '全体平均 ${num0(rows[i].avg!)}',
+                      if (!_ok(rows[i])) '科目を選んでください',
+                      if (_dup(rows[i])) 'すでに記録あり',
+                    ].join('・'),
+                    style: TextStyle(color: !_ok(rows[i]) || _dup(rows[i]) ? c.error : null),
+                  ),
+                  secondary: IconButton(tooltip: '直す', icon: const Icon(Icons.edit, size: 18), onPressed: () => _fix(i)),
+                ),
+            ]),
+          ),
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('やめる')),
+        FilledButton(
+          onPressed: n == 0 ? null : () => Navigator.pop(context, [for (var i = 0; i < rows.length; i++) if (checked[i]) rows[i]]),
+          child: Text('$n件を記録'),
+        ),
       ],
     );
   }

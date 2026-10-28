@@ -114,7 +114,13 @@ class _ShellState extends State<Shell> {
       HomePage(data: widget.data, go: (i) => setState(() => tab = i)),
       FindPage(materials: widget.data.materials),
       SchedulePage(schedule: widget.data.schedule),
-      HyakumonPage(subjects: [...{for (final m in widget.data.materials) m.subject}]),
+      HyakumonPage(
+        subjects: [...{for (final m in widget.data.materials) m.subject}],
+        examDates: {
+          for (final e in widget.data.schedule)
+            if (DateTime.tryParse(e.date) != null) '${e.exam}試験|${e.subject}': DateTime.parse(e.date),
+        },
+      ),
       const ReportPage(),
     ];
     final wide = MediaQuery.sizeOf(context).width >= 720;
@@ -364,8 +370,9 @@ class SchedulePage extends StatelessWidget {
 }
 
 class HyakumonPage extends StatelessWidget {
-  const HyakumonPage({super.key, required this.subjects});
+  const HyakumonPage({super.key, required this.subjects, required this.examDates});
   final List<String> subjects;
+  final Map<String, DateTime> examDates;
 
   @override
   Widget build(BuildContext context) {
@@ -383,7 +390,7 @@ class HyakumonPage extends StatelessWidget {
         label: const Text('百問繚乱を開く'),
       ),
       const SizedBox(height: 24),
-      ScoreLog(subjects: subjects),
+      ScoreLog(subjects: subjects, examDates: examDates),
     ]);
   }
 }
