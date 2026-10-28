@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'score_log.dart';
+
 const hyakumonUrl =
     'https://shonan544-kanagawapref.s.simple-edu.co.jp/#/student/exam_list';
 const repoUrl = 'https://github.com/Seg1GPT0Jpn/ShonanHighSchoool-104';
@@ -112,7 +114,7 @@ class _ShellState extends State<Shell> {
       HomePage(data: widget.data, go: (i) => setState(() => tab = i)),
       FindPage(materials: widget.data.materials),
       SchedulePage(schedule: widget.data.schedule),
-      const HyakumonPage(),
+      HyakumonPage(subjects: [...{for (final m in widget.data.materials) m.subject}]),
       const ReportPage(),
     ];
     final wide = MediaQuery.sizeOf(context).width >= 720;
@@ -218,7 +220,7 @@ class HomePage extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.quiz),
             title: const Text('百問繚乱'),
-            subtitle: const Text('学校の演習サイトへ（リンクのみ）'),
+            subtitle: const Text('演習サイトへのリンクと、自分の結果の記録'),
             onTap: () => go(3),
           ),
           ListTile(
@@ -362,7 +364,8 @@ class SchedulePage extends StatelessWidget {
 }
 
 class HyakumonPage extends StatelessWidget {
-  const HyakumonPage({super.key});
+  const HyakumonPage({super.key, required this.subjects});
+  final List<String> subjects;
 
   @override
   Widget build(BuildContext context) {
@@ -371,7 +374,7 @@ class HyakumonPage extends StatelessWidget {
       const SizedBox(height: 8),
       const Text('学校で使っている演習サイトです。ログインは百問繚乱のページで、自分のアカウントで行ってください。'),
       const SizedBox(height: 8),
-      const Notice('このポータルは百問繚乱のIDやパスワードを預かりません。自動ログインや問題の取り込みもしません。',
+      const Notice('このポータルは百問繚乱のIDやパスワードを預かりません。自動ログインや結果の取り込みもしません。',
           icon: Icons.lock_outline),
       const SizedBox(height: 16),
       FilledButton.icon(
@@ -379,6 +382,8 @@ class HyakumonPage extends StatelessWidget {
         icon: const Icon(Icons.open_in_new),
         label: const Text('百問繚乱を開く'),
       ),
+      const SizedBox(height: 24),
+      ScoreLog(subjects: subjects),
     ]);
   }
 }
